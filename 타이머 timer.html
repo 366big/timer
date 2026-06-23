@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KvK Rally Sync Calculator</title>
+
+<style>
+body{
+    background:#111;
+    color:white;
+    font-family:Arial,sans-serif;
+    max-width:1000px;
+    margin:auto;
+    padding:20px;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+table{
+    width:100%;
+    margin-bottom:20px;
+}
+
+td{
+    padding:5px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    font-size:16px;
+    box-sizing:border-box;
+    border-radius:8px;
+    border:none;
+}
+
+button{
+    padding:12px 18px;
+    margin:5px;
+    font-size:16px;
+    cursor:pointer;
+    border:none;
+    border-radius:8px;
+}
+
+button:hover{
+    opacity:0.9;
+}
+
+#result{
+    margin-top:20px;
+}
+
+.result-card{
+    background:#222;
+    border-radius:10px;
+    padding:15px;
+    margin-bottom:10px;
+    font-size:24px;
+    font-weight:bold;
+}
+
+.go{
+    color:#00ff88;
+}
+
+.num{
+    color:#ffd700;
+}
+
+#copyText{
+    position:absolute;
+    left:-9999px;
+}
+
+#timerBox{
+    text-align:center;
+    margin-top:40px;
+    padding:20px;
+    border-radius:15px;
+    background:#1a1a1a;
+}
+
+#timer{
+    font-size:140px;
+    font-weight:bold;
+    color:#00ff88;
+    line-height:1;
+}
+
+#event{
+    margin-top:15px;
+    font-size:50px;
+    color:#ffd700;
+    font-weight:bold;
+    min-height:60px;
+}
+
+#nextEvent{
+    margin-top:10px;
+    font-size:20px;
+    color:#aaa;
+}
+
+.highlight{
+    animation: flash 0.6s ease-in-out;
+}
+
+@keyframes flash{
+    0%{transform:scale(1);}
+    50%{transform:scale(1.15);}
+    100%{transform:scale(1);}
+}
+
+@media (max-width:600px){
+
+    #timer{
+        font-size:90px;
+    }
+
+    #event{
+        font-size:35px;
+    }
+
+    .result-card{
+        font-size:18px;
+    }
+}
+</style>
+</head>
+
+<body>
+<div style="
+text-align:center;
+margin-bottom:15px;">
+
+<div style="
+font-size:30px;
+font-weight:900;
+color:#FFD700;
+letter-spacing:3px;">
+⚔ Created by 비빔BIBIM <br>
+    Kingdom 356 ⚔
+</div>
+
+<h1>⚔ KvK Rally Sync Calculator / 집결 동기화 계산기</h1>
+
+<table id="table">
+
+<tr>
+<td>
+<input placeholder="Rally Leader / 집결장">
+</td>
+<td>
+<input placeholder="March Time / 행군시간 (33 or 1:33)">
+</td>
+</tr>
+
+<tr>
+<td>
+<input placeholder="Rally Leader / 집결장">
+</td>
+<td>
+<input placeholder="March Time / 행군시간">
+</td>
+</tr>
+
+<tr>
+<td>
+<input placeholder="Rally Leader / 집결장">
+</td>
+<td>
+<input placeholder="March Time / 행군시간">
+</td>
+</tr>
+
+</table>
+
+<button onclick="addRow()">➕ Add / 추가</button>
+<button onclick="calculate()">📊 Calculate / 계산</button>
+<button onclick="copyResult()">📋 Copy / 복사</button>
+<button onclick="startTimer()">▶ START</button>
+<button onclick="stopTimer()">⏸ STOP</button>
+<button onclick="resetTimer()">🔄 RESET</button>
+
+<div id="result"></div>
+
+<div id="timerBox">
+    <div id="timer">READY</div>
+    <div id="event"></div>
+    <div id="nextEvent"></div>
+</div>
+
+<textarea id="copyText"></textarea>
+
+<script>
+
+let rallySchedule = [];
+let timerInterval = null;
+let countdownInterval = null;
+
+function addRow(){
+
+    let row = document.createElement("tr");
+
+    row.innerHTML = `
+    <td>
+        <input placeholder="Rally Leader / 집결장">
+    </td>
+    <td>
+        <input placeholder="March Time / 행군시간">
+    </td>
+    `;
+
+    document.getElementById("table").appendChild(row);
+}
+
+function parseTime(value){
+
+    value = value.trim();
+
+    if(value.includes(":")){
+
+        const parts = value.split(":");
+
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    }
+
+    return parseInt(value);
+}
+
+function calculate(){
+
+    const rows = document.querySelectorAll("#table tr");
+
+    let players = [];
+
+    rows.forEach(row=>{
+
+        const inputs = row.querySelectorAll("input");
+
+        if(inputs.length < 2) return;
+
+        const name = inputs[0].value.trim();
+        const time = inputs[1].value.trim();
+
+        if(!name || !time) return;
+
+        players.push({
+            name:name,
+            time:parseTime(time)
+        });
+
+    });
+
+    if(players.length === 0){
+
+        alert("Please enter data.");
+        return;
+    }
+
+    const maxTime = Math.max(...players.map(p=>p.time));
+
+    rallySchedule = players.map(p=>{
+
+        return{
+            name:p.name,
+            time:p.time,
+            launch:maxTime-p.time
+        };
+
+    });
+
+    rallySchedule.sort((a,b)=>a.launch-b.launch);
+
+    let html = "";
+    let copyText = "";
+
+    rallySchedule.forEach(r=>{
+
+        if(r.launch === 0){
+
+            html += `
+            <div class="result-card">
+                ${r.name} → <span class="go">GO</span>
+                <div style="font-size:14px;color:#999;">
+                    March Time: ${r.time}s
+                </div>
+            </div>
+            `;
+
+            copyText += `${r.name} → GO\n`;
+
+        }else{
+
+            html += `
+            <div class="result-card">
+                ${r.name} → <span class="num">${r.launch}</span>
+                <div style="font-size:14px;color:#999;">
+                    March Time: ${r.time}s
+                </div>
+            </div>
+            `;
+
+            copyText += `${r.name} → ${r.launch}\n`;
+
+        }
+
+    });
+
+    document.getElementById("result").innerHTML = html;
+    document.getElementById("copyText").value = copyText;
+}
+
+function copyResult(){
+
+    const text = document.getElementById("copyText");
+
+    text.select();
+    document.execCommand("copy");
+
+    alert("Copied!");
+}
+
+function startMainTimer(){
+
+    let current = 0;
+
+    document.getElementById("event").innerHTML = "🚀 GO";
+
+    timerInterval = setInterval(()=>{
+
+        current++;
+
+        document.getElementById("timer").innerHTML = current;
+
+        const launches = rallySchedule.filter(
+            p => p.launch === current
+        );
+
+        if(launches.length){
+
+            const names = launches.map(x=>x.name).join(", ");
+
+            const eventDiv = document.getElementById("event");
+
+            eventDiv.innerHTML = `🔥 ${names}`;
+
+            eventDiv.classList.remove("highlight");
+            void eventDiv.offsetWidth;
+            eventDiv.classList.add("highlight");
+
+        }else{
+
+            document.getElementById("event").innerHTML = "";
+        }
+
+        const next = rallySchedule.find(
+            p => p.launch > current
+        );
+
+        if(next){
+
+            document.getElementById("nextEvent").innerHTML =
+            `Next Launch: ${next.name} (${next.launch})`;
+
+        }else{
+
+            document.getElementById("nextEvent").innerHTML =
+            "✅ All Launches Complete";
+        }
+
+    },1000);
+}
+
+function startTimer(){
+
+    if(rallySchedule.length === 0){
+
+        alert("Calculate first.");
+        return;
+    }
+
+    clearInterval(timerInterval);
+    clearInterval(countdownInterval);
+
+    document.getElementById("event").innerHTML = "";
+    document.getElementById("nextEvent").innerHTML = "";
+
+    let countdown = 5;
+
+    document.getElementById("timer").innerHTML = countdown;
+
+    countdownInterval = setInterval(()=>{
+
+        countdown--;
+
+        if(countdown > 0){
+
+            document.getElementById("timer").innerHTML = countdown;
+
+        }else if(countdown === 0){
+
+            document.getElementById("timer").innerHTML = "GO";
+
+            clearInterval(countdownInterval);
+
+            setTimeout(()=>{
+
+                startMainTimer();
+
+            },0);
+        }
+
+    },1000);
+}
+
+function stopTimer(){
+
+    clearInterval(timerInterval);
+    clearInterval(countdownInterval);
+
+    document.getElementById("event").innerHTML =
+    "⏸ PAUSED";
+}
+
+function resetTimer(){
+
+    clearInterval(timerInterval);
+    clearInterval(countdownInterval);
+
+    document.getElementById("timer").innerHTML =
+    "READY";
+
+    document.getElementById("event").innerHTML = "";
+    document.getElementById("nextEvent").innerHTML = "";
+}
+
+</script>
+
+
+<div style="
+text-align:center;
+margin-top:40px;
+color:#888;
+font-size:13px;">
+KvK Rally Sync Tool v1.0<br>
+Created by 비빔BIBIM | Kingdom 356
+</div>
+
+</body>
+</html>
